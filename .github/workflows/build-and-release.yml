@@ -1,5 +1,8 @@
 name: Build and Release Ladybird Browser
 
+permissions:
+  contents: write
+
 on:
   push:
     branches: [main, master]
@@ -229,9 +232,9 @@ jobs:
           echo "New version: $NEW_VERSION"
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: ncipollo/release-action@v1
         with:
-          tag_name: ${{ env.NEW_VERSION }}
+          tag: ${{ env.NEW_VERSION }}
           name: Ladybird Browser ${{ env.NEW_VERSION }}
           body: |
             Automated build of Ladybird Browser ${{ env.NEW_VERSION }}
@@ -253,7 +256,7 @@ jobs:
             **Note:** This is an automated build. For official releases, please check the main Ladybird repository.
           draft: false
           prerelease: false
-          files: |
+          artifacts: |
             ladybird-ubuntu/**
             ladybird-fedora/**
         env:
