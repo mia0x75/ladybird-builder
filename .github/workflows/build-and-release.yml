@@ -6,16 +6,20 @@ permissions:
 on:
   push:
     branches: [main, master]
-  pull_request:
-    branches: [main, master]
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (e.g., 1.0.1)"
+        required: true
+        type: string
   schedule:
     # Run twice daily at 00:00 and 12:00 UTC
     - cron: "0 0,12 * * *"
-  workflow_dispatch: # Allow manual triggering
 
 env:
   BUILD_PRESET: Release
-  VERSION_BASE: v1.0
   LADYBIRD_REPO: https://github.com/LadybirdBrowser/ladybird.git
 
 jobs:
@@ -104,6 +108,50 @@ jobs:
           EOF
           chmod +x artifacts/ubuntu/ladybird-launcher.sh
 
+      - name: Create .deb package
+        run: |
+          # Install packaging tools
+          sudo apt install -y devscripts debhelper dh-make
+
+          # Create package structure
+          mkdir -p ladybird-deb/usr/bin
+          mkdir -p ladybird-deb/usr/share/applications
+          mkdir -p ladybird-deb/usr/share/icons/hicolor/256x256/apps
+          mkdir -p ladybird-deb/DEBIAN
+
+          # Copy binary
+          cp ladybird-src/Build/release/bin/Ladybird ladybird-deb/usr/bin/ladybird
+
+          # Create desktop file
+          cat > ladybird-deb/usr/share/applications/ladybird.desktop << 'EOF'
+          [Desktop Entry]
+          Version=1.0
+          Type=Application
+          Name=Ladybird Browser
+          Comment=Independent web browser from SerenityOS
+          Exec=ladybird
+          Icon=ladybird
+          Terminal=false
+          Categories=Network;WebBrowser;
+          EOF
+
+          # Create control file
+          cat > ladybird-deb/DEBIAN/control << 'EOF'
+          Package: ladybird-browser
+          Version: ${{ steps.version.outputs.VERSION }}
+          Section: web
+          Priority: optional
+          Architecture: amd64
+          Depends: libqt6core6, libqt6gui6, libqt6widgets6, libqt6network6, libpulse0
+          Maintainer: Ladybird Builder <noreply@github.com>
+          Description: Independent web browser from SerenityOS
+           Ladybird is a new cross-platform web browser project
+           that aims to bring the SerenityOS browser to other platforms.
+          EOF
+
+          # Build .deb package
+          dpkg-deb --build ladybird-deb artifacts/ladybird-browser_${{ steps.version.outputs.VERSION }}_amd64.deb
+
       - name: Upload Ubuntu artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -188,6 +236,91 @@ jobs:
           EOF
           chmod +x artifacts/fedora/ladybird-launcher.sh
 
+      - name: Create .rpm package
+        run: |
+          # Install packaging tools
+          dnf install -y rpm-build rpmdevtools
+
+          # Create RPM build environment
+          rpmdev-setuptree
+
+          # Create spec file
+          cat > ~/rpmbuild/SPECS/ladybird.spec << 'EOF'
+          Name:           ladybird-browser
+          Version:        ${{ steps.version.outputs.VERSION }}
+          Release:        1%{?dist}
+          Summary:        Independent web browser from SerenityOS
+
+          License:        BSD
+          URL:            https://ladybird.dev
+          Source0:        ladybird-%{version}.tar.gz
+
+          BuildRequires:  qt6-qtbase-devel
+          Requires:       qt6-qtbase qt6-qtwayland pulseaudio-libs
+
+          %description
+          Ladybird is a new cross-platform web browser project
+          that aims to bring the SerenityOS browser to other platforms.
+
+          %prep
+          %setup -q
+
+          %build
+          ./Meta/ladybird.py build
+
+          %install
+          mkdir -p %{buildroot}/usr/bin
+          mkdir -p %{buildroot}/usr/share/applications
+          install -m 755 Build/release/bin/Ladybird %{buildroot}/usr/bin/ladybird
+
+          mkdir -p %{buildroot}/usr/share/applications
+          cat > %{buildroot}/usr/share/applications/ladybird.desktop << 'DESKTOP'
+          [Desktop Entry]
+          Version=1.0
+          Type=Application
+          Name=Ladybird Browser
+          Comment=Independent web browser from SerenityOS
+          Exec=ladybird
+          Icon=ladybird
+          Terminal=false
+          Categories=Network;WebBrowser;
+          DESKTOP
+
+          %files
+          /usr/bin/ladybird
+          /usr/share/applications/ladybird.desktop
+
+          %changelog
+          * Wed Jan 01 2025 Ladybird Builder <noreply@github.com> - 1.0.0-1
+          - Initial package
+          EOF
+
+          # Copy binary and create simple RPM structure
+          mkdir -p ladybird-rpm/usr/bin
+          mkdir -p ladybird-rpm/usr/share/applications
+          cp ladybird-src/Build/release/bin/Ladybird ladybird-rpm/usr/bin/ladybird
+
+          cat > ladybird-rpm/usr/share/applications/ladybird.desktop << 'EOF'
+          [Desktop Entry]
+          Version=1.0
+          Type=Application
+          Name=Ladybird Browser
+          Comment=Independent web browser from SerenityOS
+          Exec=ladybird
+          Icon=ladybird
+          Terminal=false
+          Categories=Network;WebBrowser;
+          EOF
+
+          # Create tarball for RPM build (simplified approach)
+          tar czf ~/rpmbuild/SOURCES/ladybird-${{ steps.version.outputs.VERSION }}.tar.gz ladybird-rpm/
+
+          # Build RPM
+          rpmbuild -bb ~/rpmbuild/SPECS/ladybird.spec
+
+          # Copy RPM to artifacts
+          cp ~/rpmbuild/RPMS/x86_64/ladybird-browser-${{ steps.version.outputs.VERSION }}-1.*.x86_64.rpm artifacts/ladybird-browser-${{ steps.version.outputs.VERSION }}.x86_64.rpm
+
       - name: Upload Fedora artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -199,56 +332,98 @@ jobs:
     name: Create Release
     needs: [build-ubuntu, build-fedora]
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
 
-      - name: Determine version
+      - name: Get current version
+        id: current_version
+        run: |
+          # Get the latest tag or start from v1.0.0
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.0")
+          echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_OUTPUT
+          echo "Current latest tag: $LATEST_TAG"
+
+      - name: Determine new version
         id: version
         run: |
-          # Get the latest release tag
-          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "$VERSION_BASE.0")
-
-          # Extract version numbers
-          if [[ $LATEST_TAG =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
-            MAJOR=${BASH_REMATCH[1]}
-            MINOR=${BASH_REMATCH[2]}
-            PATCH=${BASH_REMATCH[3]}
-
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            # Manual release - use provided version
+            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            # Tag push - use tag version
+            echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          else
+            # Main branch push - auto-increment patch version
+            CURRENT_VERSION=${{ steps.current_version.outputs.LATEST_TAG }}
+            # Remove 'v' prefix and split version components
+            VERSION_NUM=${CURRENT_VERSION#v}
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION_NUM"
             # Increment patch version
             NEW_PATCH=$((PATCH + 1))
-            NEW_VERSION="v${MAJOR}.${MINOR}.${NEW_PATCH}"
-          else
-            # If no valid tag found, start from v1.0.1
-            NEW_VERSION="v1.0.1"
+            NEW_VERSION="${MAJOR}.${MINOR}.${NEW_PATCH}"
+            echo "VERSION=$NEW_VERSION" >> $GITHUB_OUTPUT
+          fi
+          echo "Using version: ${{ steps.version.outputs.VERSION }}"
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Generate changelog from git commits since last tag
+          LAST_TAG=${{ steps.current_version.outputs.LATEST_TAG }}
+          CHANGELOG=$(git log --pretty=format:"- %s (%h)" ${LAST_TAG}..HEAD 2>/dev/null || git log --pretty=format:"- %s (%h)" -n 10)
+
+          if [ -z "$CHANGELOG" ]; then
+            CHANGELOG="No significant changes detected"
           fi
 
-          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
-          echo "New version: $NEW_VERSION"
+          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create and push tag (for main branch releases)
+        if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && github.event_name != 'schedule'
+        run: |
+          NEW_VERSION="${{ steps.version.outputs.VERSION }}"
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git tag -a "v${NEW_VERSION}" -m "Release v${NEW_VERSION}"
+          git push origin "v${NEW_VERSION}"
 
       - name: Create Release
-        uses: ncipollo/release-action@v1
+        uses: softprops/action-gh-release@v1
         with:
-          tag: ${{ env.NEW_VERSION }}
-          name: Ladybird Browser ${{ env.NEW_VERSION }}
+          tag_name: v${{ steps.version.outputs.VERSION }}
+          name: Ladybird Browser v${{ steps.version.outputs.VERSION }}
           body: |
-            Automated build of Ladybird Browser ${{ env.NEW_VERSION }}
+            # Ladybird Browser v${{ steps.version.outputs.VERSION }}
 
-            **Build Information:**
+            Automated build of Ladybird Browser
+
+            ## Changes since last release:
+            ${{ steps.changelog.outputs.CHANGELOG }}
+
+            ## Build Information:
             - Commit: ${{ github.sha }}
             - Build Date: ${{ github.event.head_commit.timestamp }}
             - Trigger: ${{ github.event_name }}
 
-            **Available Artifacts:**
-            - Ubuntu (GCC 14)
-            - Fedora
+            ## Available Artifacts:
+            - Ubuntu (GCC 14) - Portable binary with launcher script
+            - Fedora - Portable binary with launcher script
+            - Debian/Ubuntu - `.deb` package for easy installation
+            - Fedora/RHEL - `.rpm` package for easy installation
 
-            **Installation:**
+            ## Installation:
             1. Download the appropriate archive for your distribution
             2. Extract the files
             3. Run `./ladybird-launcher.sh` to start the browser
@@ -256,8 +431,8 @@ jobs:
             **Note:** This is an automated build. For official releases, please check the main Ladybird repository.
           draft: false
           prerelease: false
-          artifacts: |
+          files: |
             ladybird-ubuntu/**
             ladybird-fedora/**
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            ladybird-browser_${{ steps.version.outputs.VERSION }}_amd64.deb
+            ladybird-browser-${{ steps.version.outputs.VERSION }}.x86_64.rpm
