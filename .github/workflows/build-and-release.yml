@@ -94,13 +94,12 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: fedora:latest
-      options: --user 1001:1001
 
     steps:
       - name: Install Fedora dependencies
         run: |
           dnf update -y
-          dnf install -y autoconf-archive automake ccache cmake curl git libdrm-devel liberation-sans-fonts libglvnd-devel libtool nasm ninja-build patchelf perl-FindBin perl-IPC-Cmd perl-lib perl-Time-Piece qt6-qtbase-devel qt6-qttools-devel qt6-qtwayland-devel tar unzip zip zlib-ng-compat-static pulseaudio-libs-devel gcc gcc-c++ python3 mesa-libGL-devel mesa-libGLU-devel libX11-devel libXext-devel libXi-devel libXrandr-devel libXcursor-devel libXinerama-devel libXxf86vm-devel
+          dnf install -y autoconf-archive automake ccache cmake curl git libdrm-devel liberation-sans-fonts libglvnd-devel libtool nasm ninja-build patchelf perl-FindBin perl-IPC-Cmd perl-lib perl-Time-Piece qt6-qtbase-devel qt6-qttools-devel qt6-qtwayland-devel tar unzip zip zlib-ng-compat-static pulseaudio-libs-devel gcc gcc-c++ python3 mesa-libGL-devel mesa-libGLU-devel libX11-devel libXext-devel libXi-devel libXrandr-devel libXcursor-devel libXinerama-devel libXxf86vm-devel sudo
 
       - name: Checkout builder repository
         uses: actions/checkout@v4
@@ -114,7 +113,7 @@ jobs:
       - name: Build Ladybird
         working-directory: ladybird-src
         run: |
-          ./Meta/ladybird.py build
+          sudo -u nobody ./Meta/ladybird.py build
 
       - name: Package Fedora binary
         run: |

@@ -87,7 +87,8 @@
           "libXrandr-devel",
           "libXcursor-devel",
           "libXinerama-devel",
-          "libXxf86vm-devel"
+          "libXxf86vm-devel",
+          "sudo"
         ]
       }
     ]
@@ -122,5 +123,9 @@
     "prerelease": false,
     "generate_release_notes": true,
     "include_artifacts": true
+  },
+  "security": {
+    "fedora_build_user": "nobody",
+    "use_sudo_for_non_root_build": true
   }
 }
