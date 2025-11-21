@@ -36,7 +36,7 @@ jobs:
       - name: Install Ubuntu dependencies
         run: |
           sudo apt update
-          sudo apt install -y autoconf autoconf-archive automake build-essential ccache cmake curl fonts-liberation2 git libdrm-dev libgl1-mesa-dev libtool nasm ninja-build pkg-config python3-venv qt6-base-dev qt6-tools-dev-tools qt6-wayland tar unzip zip libpulse-dev
+          sudo apt install -y autoconf autoconf-archive automake build-essential ccache cmake curl fonts-liberation2 git libdrm-dev libgl1-mesa-dev libtool nasm ninja-build pkg-config python3-venv qt6-base-dev qt6-tools-dev-tools qt6-wayland tar unzip zip libpulse-dev mesa-common-dev libglu1-mesa-dev libx11-dev libxext-dev libxi-dev libxrandr-dev libxcursor-dev libxinerama-dev libxxf86vm-dev
 
       - name: Install CMake 3.25+
         run: |
@@ -94,12 +94,13 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: fedora:latest
+      options: --user 1001:1001
 
     steps:
       - name: Install Fedora dependencies
         run: |
           dnf update -y
-          dnf install -y autoconf-archive automake ccache cmake curl git libdrm-devel liberation-sans-fonts libglvnd-devel libtool nasm ninja-build patchelf perl-FindBin perl-IPC-Cmd perl-lib perl-Time-Piece qt6-qtbase-devel qt6-qttools-devel qt6-qtwayland-devel tar unzip zip zlib-ng-compat-static pulseaudio-libs-devel gcc gcc-c++ python3
+          dnf install -y autoconf-archive automake ccache cmake curl git libdrm-devel liberation-sans-fonts libglvnd-devel libtool nasm ninja-build patchelf perl-FindBin perl-IPC-Cmd perl-lib perl-Time-Piece qt6-qtbase-devel qt6-qttools-devel qt6-qtwayland-devel tar unzip zip zlib-ng-compat-static pulseaudio-libs-devel gcc gcc-c++ python3 mesa-libGL-devel mesa-libGLU-devel libX11-devel libXext-devel libXi-devel libXrandr-devel libXcursor-devel libXinerama-devel libXxf86vm-devel
 
       - name: Checkout builder repository
         uses: actions/checkout@v4

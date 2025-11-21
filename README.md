@@ -11,6 +11,7 @@ This is a **builder repository** that automatically:
 - Creates releases with auto-incrementing version tags (starting from v1.0.0)
 - Runs twice daily to get the latest commits
 - Supports manual triggering via workflow_dispatch
+- Includes all required graphics and audio dependencies
 
 ## How It Works
 
@@ -19,6 +20,17 @@ This is a **builder repository** that automatically:
 3. **Build**: Uses Ladybird's official build script (`./Meta/ladybird.py build`)
 4. **Package**: Creates portable binaries with launcher scripts
 5. **Release**: Creates GitHub releases with auto-incrementing version tags
+
+## Dependencies
+
+The workflow automatically installs all required dependencies including:
+
+- **Build Tools**: CMake, Ninja, NASM, autoconf, automake
+- **Compilers**: GCC 14, Clang 20 with C++23 support
+- **Graphics**: Mesa, OpenGL, X11 development libraries
+- **Audio**: PulseAudio development libraries
+- **Qt6**: Full Qt6 development environment
+- **Fonts**: Liberation fonts for proper text rendering
 
 ## Workflow Features
 
