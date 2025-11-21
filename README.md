@@ -65,8 +65,7 @@ To manually trigger a build:
 
 ### Artifacts
 Each release contains:
-- `ladybird-ubuntu-gcc-14/` - Ubuntu build with GCC 14
-- `ladybird-ubuntu-clang-20/` - Ubuntu build with Clang 20  
+- `ladybird-ubuntu/` - Ubuntu build with GCC 14
 - `ladybird-fedora/` - Fedora build
 
 Each artifact includes:

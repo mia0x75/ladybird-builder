@@ -22,10 +22,6 @@ jobs:
     name: Build on Ubuntu
     runs-on: ubuntu-latest
 
-    strategy:
-      matrix:
-        compiler: [gcc-14, clang-20]
-
     steps:
       - name: Checkout builder repository
         uses: actions/checkout@v4
@@ -65,24 +61,13 @@ jobs:
           sudo apt update
           sudo apt install -y cmake
 
-      - name: Setup ${{ matrix.compiler }}
-        if: matrix.compiler == 'gcc-14'
+      - name: Setup GCC-14 compiler
         run: |
           sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
           sudo apt update
           sudo apt install -y g++-14 libstdc++-14-dev
           echo "CC=gcc-14" >> $GITHUB_ENV
           echo "CXX=g++-14" >> $GITHUB_ENV
-
-      - name: Setup ${{ matrix.compiler }}
-        if: matrix.compiler == 'clang-20'
-        run: |
-          sudo wget -O /usr/share/keyrings/llvm-snapshot.gpg.key https://apt.llvm.org/llvm-snapshot.gpg.key
-          echo "deb [signed-by=/usr/share/keyrings/llvm-snapshot.gpg.key] https://apt.llvm.org/$(lsb_release -sc)/ llvm-toolchain-$(lsb_release -sc)-20 main" | sudo tee -a /etc/apt/sources.list.d/llvm.list
-          sudo apt update
-          sudo apt install -y clang-20 clangd-20 clang-tools-20 clang-format-20 clang-tidy-20 lld-20
-          echo "CC=clang-20" >> $GITHUB_ENV
-          echo "CXX=clang++-20" >> $GITHUB_ENV
 
       - name: Check GCC version
         run: |
@@ -103,21 +88,21 @@ jobs:
 
       - name: Package Ubuntu binary
         run: |
-          mkdir -p artifacts/ubuntu-${{ matrix.compiler }}
-          cp -r ladybird-src/Build/release/bin/* artifacts/ubuntu-${{ matrix.compiler }}/
+          mkdir -p artifacts/ubuntu
+          cp -r ladybird-src/Build/release/bin/* artifacts/ubuntu/
           # Create a simple launcher script
-          cat > artifacts/ubuntu-${{ matrix.compiler }}/ladybird-launcher.sh << 'EOF'
+          cat > artifacts/ubuntu/ladybird-launcher.sh << 'EOF'
           #!/bin/bash
           cd "$(dirname "$0")"
           ./Ladybird "$@"
           EOF
-          chmod +x artifacts/ubuntu-${{ matrix.compiler }}/ladybird-launcher.sh
+          chmod +x artifacts/ubuntu/ladybird-launcher.sh
 
       - name: Upload Ubuntu artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ladybird-ubuntu-${{ matrix.compiler }}
-          path: artifacts/ubuntu-${{ matrix.compiler }}/
+          name: ladybird-ubuntu
+          path: artifacts/ubuntu/
           retention-days: 7
 
   build-fedora:
@@ -250,7 +235,6 @@ jobs:
 
             **Available Artifacts:**
             - Ubuntu (GCC 14)
-            - Ubuntu (Clang 20)
             - Fedora
 
             **Installation:**
@@ -262,8 +246,7 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            ladybird-ubuntu-gcc-14/**
-            ladybird-ubuntu-clang-20/**
+            ladybird-ubuntu/**
             ladybird-fedora/**
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
