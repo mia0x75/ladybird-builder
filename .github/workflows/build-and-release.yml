@@ -79,32 +79,32 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: fedora:latest
-      options: --user 1001:1001
 
     steps:
-      - name: Install Fedora dependencies
+      - name: Install Fedora dependencies as root
         run: |
-          sudo dnf update -y
-          sudo dnf install -y autoconf-archive automake ccache cmake curl git libdrm-devel liberation-sans-fonts libglvnd-devel libtool nasm ninja-build patchelf perl-FindBin perl-IPC-Cmd perl-lib perl-Time-Piece qt6-qtbase-devel qt6-qttools-devel qt6-qtwayland-devel tar unzip zip zlib-ng-compat-static pulseaudio-libs-devel sudo
+          dnf update -y
+          dnf install -y autoconf-archive automake ccache cmake curl git libdrm-devel liberation-sans-fonts libglvnd-devel libtool nasm ninja-build patchelf perl-FindBin perl-IPC-Cmd perl-lib perl-Time-Piece qt6-qtbase-devel qt6-qttools-devel qt6-qtwayland-devel tar unzip zip zlib-ng-compat-static pulseaudio-libs-devel shadow-utils sudo
+
+      - name: Setup non-root user
+        run: |
+          # Create a non-root user matching GitHub runner
+          useradd -m -u 1001 runner
+          echo "runner ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/runner
 
       - name: Checkout builder repository
         uses: actions/checkout@v4
 
-      - name: Clone Ladybird repository
+      - name: Clone Ladybird repository as non-root
         run: |
-          # Create non-root user for building
-          sudo useradd -m -u 1001 builder
-          sudo chown -R builder:builder /__w/ladybird-builder/ladybird-builder
+          su runner -c "git clone --depth 1 $LADYBIRD_REPO ladybird-src"
+          su runner -c "cd ladybird-src && git submodule update --init --recursive"
 
-          # Clone as non-root user
-          sudo -u builder git clone --depth 1 $LADYBIRD_REPO ladybird-src
-          cd ladybird-src
-          sudo -u builder git submodule update --init --recursive
-
-      - name: Build Ladybird
+      - name: Build Ladybird as non-root
         working-directory: ladybird-src
         run: |
-          sudo -u builder ./Meta/ladybird.py build
+          # Build as non-root user to avoid Ladybird's root detection
+          su runner -c "./Meta/ladybird.py build"
 
       - name: Package Fedora binary
         run: |
@@ -113,7 +113,7 @@ jobs:
           # Copy resource files
           cp -r ladybird-src/Base/res/* artifacts/fedora/ 2>/dev/null || true
           # Fix ownership so release job can access files
-          sudo chown -R 1001:1001 artifacts/
+          chown -R 1001:1001 artifacts/
 
       - name: Upload Fedora artifacts
         uses: actions/upload-artifact@v4
