@@ -79,26 +79,32 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: fedora:latest
+      options: --user 1001:1001
 
     steps:
       - name: Install Fedora dependencies
         run: |
-          dnf update -y
-          dnf install -y autoconf-archive automake ccache cmake curl git libdrm-devel liberation-sans-fonts libglvnd-devel libtool nasm ninja-build patchelf perl-FindBin perl-IPC-Cmd perl-lib perl-Time-Piece qt6-qtbase-devel qt6-qttools-devel qt6-qtwayland-devel tar unzip zip zlib-ng-compat-static pulseaudio-libs-devel
+          sudo dnf update -y
+          sudo dnf install -y autoconf-archive automake ccache cmake curl git libdrm-devel liberation-sans-fonts libglvnd-devel libtool nasm ninja-build patchelf perl-FindBin perl-IPC-Cmd perl-lib perl-Time-Piece qt6-qtbase-devel qt6-qttools-devel qt6-qtwayland-devel tar unzip zip zlib-ng-compat-static pulseaudio-libs-devel sudo
 
       - name: Checkout builder repository
         uses: actions/checkout@v4
 
       - name: Clone Ladybird repository
         run: |
-          git clone --depth 1 $LADYBIRD_REPO ladybird-src
+          # Create non-root user for building
+          sudo useradd -m -u 1001 builder
+          sudo chown -R builder:builder /__w/ladybird-builder/ladybird-builder
+
+          # Clone as non-root user
+          sudo -u builder git clone --depth 1 $LADYBIRD_REPO ladybird-src
           cd ladybird-src
-          git submodule update --init --recursive
+          sudo -u builder git submodule update --init --recursive
 
       - name: Build Ladybird
         working-directory: ladybird-src
         run: |
-          ./Meta/ladybird.py build
+          sudo -u builder ./Meta/ladybird.py build
 
       - name: Package Fedora binary
         run: |
@@ -106,6 +112,8 @@ jobs:
           cp -r ladybird-src/Build/release/bin/* artifacts/fedora/
           # Copy resource files
           cp -r ladybird-src/Base/res/* artifacts/fedora/ 2>/dev/null || true
+          # Fix ownership so release job can access files
+          sudo chown -R 1001:1001 artifacts/
 
       - name: Upload Fedora artifacts
         uses: actions/upload-artifact@v4
