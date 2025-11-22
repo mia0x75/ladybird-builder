@@ -141,6 +141,14 @@ jobs:
         with:
           path: artifacts
 
+      - name: Clean artifacts directory
+        run: |
+          # Remove everything except the tarballs we want to release
+          find artifacts -type f -not -name "*.tar.gz" -delete
+          find artifacts -type d -empty -delete
+          echo "=== Artifacts after cleaning ==="
+          find artifacts -type f
+
       - name: Get current version
         id: current_version
         run: |
