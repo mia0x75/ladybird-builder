@@ -229,6 +229,8 @@ jobs:
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
+        with:
+          path: artifacts
 
       - name: Get current version
         id: current_version
@@ -315,5 +317,5 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            ladybird-ubuntu-${{ steps.version.outputs.VERSION }}.tar.gz
-            ladybird-fedora-${{ steps.version.outputs.VERSION }}.tar.gz
+            artifacts/ladybird-ubuntu-${{ steps.version.outputs.VERSION }}.tar.gz
+            artifacts/ladybird-fedora-${{ steps.version.outputs.VERSION }}.tar.gz
