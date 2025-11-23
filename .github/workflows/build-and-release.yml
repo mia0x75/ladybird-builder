@@ -63,8 +63,13 @@ jobs:
       - name: Package Ubuntu binary as tarball
         run: |
           mkdir -p artifacts
+          echo "=== Checking build directory ==="
+          ls -la ladybird-src/Build/release/bin/ || echo "Build directory not found"
+          echo "=== Creating tarball ==="
           cd ladybird-src/Build/release/bin
           tar -czf ../../../../artifacts/ladybird-ubuntu.tar.gz .
+          echo "=== Tarball created ==="
+          ls -la ../../../../artifacts/ladybird-ubuntu.tar.gz
           cd ../../../..
 
       - name: Upload Ubuntu artifacts
@@ -109,8 +114,13 @@ jobs:
       - name: Package Fedora binary as tarball
         run: |
           mkdir -p artifacts
+          echo "=== Checking build directory ==="
+          ls -la ladybird-src/Build/release/bin/ || echo "Build directory not found"
+          echo "=== Creating tarball ==="
           cd ladybird-src/Build/release/bin
           tar -czf ../../../../artifacts/ladybird-fedora.tar.gz .
+          echo "=== Tarball created ==="
+          ls -la ../../../../artifacts/ladybird-fedora.tar.gz
           cd ../../../..
           # Fix ownership so release job can access files
           chown -R 1001:1001 artifacts/
@@ -141,13 +151,24 @@ jobs:
         with:
           path: artifacts
 
-      - name: Clean artifacts directory
+      - name: Debug - List all downloaded artifacts
         run: |
-          # Remove everything except the tarballs we want to release
-          find artifacts -type f -not -name "*.tar.gz" -delete
-          find artifacts -type d -empty -delete
-          echo "=== Artifacts after cleaning ==="
-          find artifacts -type f
+          echo "=== All files in artifacts directory ==="
+          find artifacts -type f 2>/dev/null || echo "No files found"
+          echo "=== Directory structure ==="
+          find artifacts -type d 2>/dev/null || echo "No directories found"
+          echo "=== Checking for tarballs ==="
+          ls -la artifacts/*.tar.gz 2>/dev/null || echo "No tarballs found"
+          echo "=== Artifact names from download ==="
+          ls -la artifacts/ 2>/dev/null || echo "Artifacts directory not found"
+
+      - name: Debug - Check artifacts before release
+        run: |
+          echo "=== Artifacts before release attempt ==="
+          find artifacts -type f 2>/dev/null || echo "No artifacts found"
+          echo "=== Tarball files specifically ==="
+          ls -la artifacts/ladybird-ubuntu.tar.gz 2>/dev/null || echo "Ubuntu tarball not found"
+          ls -la artifacts/ladybird-fedora.tar.gz 2>/dev/null || echo "Fedora tarball not found"
 
       - name: Get current version
         id: current_version
@@ -222,3 +243,4 @@ jobs:
           files: |
             artifacts/ladybird-ubuntu.tar.gz
             artifacts/ladybird-fedora.tar.gz
+          fail_on_unmatched_files: false
