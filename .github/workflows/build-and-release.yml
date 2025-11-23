@@ -6,8 +6,6 @@ permissions:
 on:
   push:
     branches: [main, master]
-    tags:
-      - "v*"
   workflow_dispatch:
     inputs:
       version:
@@ -15,11 +13,9 @@ on:
         required: true
         type: string
   schedule:
-    # Run twice daily at 00:00 and 12:00 UTC
     - cron: "0 0,12 * * *"
 
 env:
-  BUILD_PRESET: Release
   LADYBIRD_REPO: https://github.com/LadybirdBrowser/ladybird.git
 
 jobs:
@@ -60,23 +56,17 @@ jobs:
         run: |
           ./Meta/ladybird.py build
 
-      - name: Package Ubuntu binary as tarball
+      - name: Create Ubuntu tarball
         run: |
-          mkdir -p artifacts
-          echo "=== Checking build directory ==="
-          ls -la ladybird-src/Build/release/bin/ || echo "Build directory not found"
-          echo "=== Creating tarball ==="
           cd ladybird-src/Build/release/bin
-          tar -czf ../../../../artifacts/ladybird-ubuntu.tar.gz .
-          echo "=== Tarball created ==="
-          ls -la ../../../../artifacts/ladybird-ubuntu.tar.gz
-          cd ../../../..
+          tar -czf ../../../ladybird-ubuntu.tar.gz .
+          cd ../../..
 
-      - name: Upload Ubuntu artifacts
+      - name: Upload Ubuntu artifact
         uses: actions/upload-artifact@v4
         with:
           name: ladybird-ubuntu
-          path: artifacts/ladybird-ubuntu.tar.gz
+          path: ladybird-src/ladybird-ubuntu.tar.gz
           retention-days: 7
 
   build-fedora:
@@ -86,14 +76,13 @@ jobs:
       image: fedora:latest
 
     steps:
-      - name: Install Fedora dependencies as root
+      - name: Install Fedora dependencies
         run: |
           dnf update -y
           dnf install -y autoconf-archive automake ccache cmake curl git libdrm-devel liberation-sans-fonts libglvnd-devel libtool nasm ninja-build patchelf perl-FindBin perl-IPC-Cmd perl-lib perl-Time-Piece qt6-qtbase-devel qt6-qttools-devel qt6-qtwayland-devel tar unzip zip zlib-ng-compat-static pulseaudio-libs-devel shadow-utils sudo
 
       - name: Setup non-root user
         run: |
-          # Create a non-root user matching GitHub runner
           useradd -m -u 1001 runner
           echo "runner ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/runner
 
@@ -108,28 +97,20 @@ jobs:
       - name: Build Ladybird as non-root
         working-directory: ladybird-src
         run: |
-          # Build as non-root user to avoid Ladybird's root detection
           su runner -c "./Meta/ladybird.py build"
 
-      - name: Package Fedora binary as tarball
+      - name: Create Fedora tarball
         run: |
-          mkdir -p artifacts
-          echo "=== Checking build directory ==="
-          ls -la ladybird-src/Build/release/bin/ || echo "Build directory not found"
-          echo "=== Creating tarball ==="
           cd ladybird-src/Build/release/bin
-          tar -czf ../../../../artifacts/ladybird-fedora.tar.gz .
-          echo "=== Tarball created ==="
-          ls -la ../../../../artifacts/ladybird-fedora.tar.gz
-          cd ../../../..
-          # Fix ownership so release job can access files
-          chown -R 1001:1001 artifacts/
+          tar -czf ../../../ladybird-fedora.tar.gz .
+          cd ../../..
+          chown -R 1001:1001 ladybird-src/ladybird-fedora.tar.gz
 
-      - name: Upload Fedora artifacts
+      - name: Upload Fedora artifact
         uses: actions/upload-artifact@v4
         with:
           name: ladybird-fedora
-          path: artifacts/ladybird-fedora.tar.gz
+          path: ladybird-src/ladybird-fedora.tar.gz
           retention-days: 7
 
   create-release:
@@ -146,34 +127,14 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Download all artifacts
+      - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          path: artifacts
-
-      - name: Debug - List all downloaded artifacts
-        run: |
-          echo "=== All files in artifacts directory ==="
-          find artifacts -type f 2>/dev/null || echo "No files found"
-          echo "=== Directory structure ==="
-          find artifacts -type d 2>/dev/null || echo "No directories found"
-          echo "=== Checking for tarballs ==="
-          ls -la artifacts/*.tar.gz 2>/dev/null || echo "No tarballs found"
-          echo "=== Artifact names from download ==="
-          ls -la artifacts/ 2>/dev/null || echo "Artifacts directory not found"
-
-      - name: Debug - Check artifacts before release
-        run: |
-          echo "=== Artifacts before release attempt ==="
-          find artifacts -type f 2>/dev/null || echo "No artifacts found"
-          echo "=== Tarball files specifically ==="
-          ls -la artifacts/ladybird-ubuntu.tar.gz 2>/dev/null || echo "Ubuntu tarball not found"
-          ls -la artifacts/ladybird-fedora.tar.gz 2>/dev/null || echo "Fedora tarball not found"
+          path: release-artifacts
 
       - name: Get current version
         id: current_version
         run: |
-          # Try to get latest tag, fallback to version file, then to default
           LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || cat .github/version.txt 2>/dev/null || echo "v1.0.0")
           echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_OUTPUT
           echo "Current latest tag: $LATEST_TAG"
@@ -192,24 +153,21 @@ jobs:
             NEW_PATCH=$((PATCH + 1))
             NEW_VERSION="${MAJOR}.${MINOR}.${NEW_PATCH}"
             echo "VERSION=$NEW_VERSION" >> $GITHUB_OUTPUT
-            # Update version file for consistency
             echo "v${NEW_VERSION}" > .github/version.txt
           fi
           echo "Using version: ${{ steps.version.outputs.VERSION }}"
 
-      - name: Create and push tag (for main branch releases)
+      - name: Create and push tag
         if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && github.event_name != 'schedule'
         run: |
           NEW_VERSION="${{ steps.version.outputs.VERSION }}"
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          # Check if tag already exists before creating it
           if git rev-parse "v${NEW_VERSION}" >/dev/null 2>&1; then
             echo "Tag v${NEW_VERSION} already exists, skipping tag creation"
           else
             git tag -a "v${NEW_VERSION}" -m "Release v${NEW_VERSION}"
             git push origin "v${NEW_VERSION}"
-            # Update version file to match the new tag
             echo "v${NEW_VERSION}" > .github/version.txt
           fi
 
@@ -229,18 +187,17 @@ jobs:
             - Trigger: ${{ github.event_name }}
 
             ## Available Binaries:
-            - Ubuntu (GCC 14) - Portable binary directory
-            - Fedora - Portable binary directory
+            - **Ubuntu**: `ladybird-ubuntu.tar.gz` (GCC 14)
+            - **Fedora**: `ladybird-fedora.tar.gz`
 
             ## Installation:
             1. Download the appropriate tarball for your distribution
-            2. Extract the files: `tar -xzf ladybird-ubuntu.tar.gz` (or ladybird-fedora.tar.gz)
-            3. Run `./Ladybird` to start the browser
+            2. Extract: `tar -xzf ladybird-ubuntu.tar.gz`
+            3. Run: `./Ladybird`
 
-            **Note:** This is an automated build. For official releases, please check the main Ladybird repository.
+            **Note:** This is an automated build. For official releases, check the main Ladybird repository.
           draft: false
           prerelease: false
           files: |
-            artifacts/ladybird-ubuntu.tar.gz
-            artifacts/ladybird-fedora.tar.gz
-          fail_on_unmatched_files: false
+            release-artifacts/ladybird-ubuntu/ladybird-ubuntu.tar.gz
+            release-artifacts/ladybird-fedora/ladybird-fedora.tar.gz
