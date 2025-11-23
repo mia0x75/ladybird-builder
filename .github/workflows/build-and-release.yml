@@ -132,6 +132,14 @@ jobs:
         with:
           path: release-artifacts
 
+      - name: Prepare release files
+        run: |
+          # Move tarballs to root directory for release
+          cp release-artifacts/ladybird-ubuntu/ladybird-ubuntu.tar.gz .
+          cp release-artifacts/ladybird-fedora/ladybird-fedora.tar.gz .
+          echo "=== Release files ready ==="
+          ls -la *.tar.gz
+
       - name: Get current version
         id: current_version
         run: |
@@ -199,5 +207,5 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            release-artifacts/ladybird-ubuntu/ladybird-ubuntu.tar.gz
-            release-artifacts/ladybird-fedora/ladybird-fedora.tar.gz
+            ladybird-ubuntu.tar.gz
+            ladybird-fedora.tar.gz
