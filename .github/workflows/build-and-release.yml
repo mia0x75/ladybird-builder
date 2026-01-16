@@ -104,7 +104,9 @@ jobs:
         run: |
           cd ladybird-src/Build/release/bin
           tar -czf ../../../ladybird-fedora.tar.gz .
-          chown -R 1001:1001 ladybird-src/ladybird-fedora.tar.gz
+          cd ../../..
+          chown 1001:1001 ladybird-fedora.tar.gz
+          ls -lah ladybird-fedora.tar.gz
 
       - name: Upload Fedora artifact
         uses: actions/upload-artifact@v4
