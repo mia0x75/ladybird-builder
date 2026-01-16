@@ -102,8 +102,12 @@ jobs:
       - name: Create Fedora tarball
         run: |
           cd ladybird-src/Build/release/bin
-          tar -czf ../../../ladybird-fedora.tar.gz .
+          ls -lah
+          
+          tar -czf ../../ladybird-fedora.tar.gz .
           cd ../../..
+
+          ls -lah
           chown -R 1001:1001 ladybird-src/ladybird-fedora.tar.gz
 
       - name: Upload Fedora artifact
