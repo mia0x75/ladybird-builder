@@ -79,7 +79,7 @@ jobs:
       - name: Install Fedora dependencies
         run: |
           dnf update -y
-          dnf install -y autoconf-archive automake ccache cmake curl git libdrm-devel liberation-sans-fonts libglvnd-devel libtool nasm ninja-build patchelf perl-FindBin perl-IPC-Cmd perl-lib perl-Time-Piece qt6-qtbase-devel qt6-qttools-devel qt6-qtwayland-devel tar unzip zip zlib-ng-compat-static pulseaudio-libs-devel shadow-utils sudo
+          dnf install -y tree autoconf-archive automake ccache cmake curl git libdrm-devel liberation-sans-fonts libglvnd-devel libtool nasm ninja-build patchelf perl-FindBin perl-IPC-Cmd perl-lib perl-Time-Piece qt6-qtbase-devel qt6-qttools-devel qt6-qtwayland-devel tar unzip zip zlib-ng-compat-static pulseaudio-libs-devel shadow-utils sudo
 
       - name: Setup non-root user
         run: |
@@ -97,6 +97,7 @@ jobs:
       - name: Build Ladybird as non-root
         working-directory: ladybird-src
         run: |
+          export CMAKE_ARGS="-DBUILD_TESTING=OFF"
           su runner -c "./Meta/ladybird.py build"
 
       - name: Create Fedora tarball
@@ -104,11 +105,10 @@ jobs:
           cd ladybird-src/Build/release/bin
           ls -lah
           
-          tar -czf ../../ladybird-fedora.tar.gz .
+          tar -czf ../../../ladybird-ubuntu.tar.gz .
           cd ../../..
-
-          ls -lah
-          chown -R 1001:1001 ladybird-src/ladybird-fedora.tar.gz
+          tree .
+          # chown -R 1001:1001 ladybird-src/ladybird-fedora.tar.gz
 
       - name: Upload Fedora artifact
         uses: actions/upload-artifact@v4
