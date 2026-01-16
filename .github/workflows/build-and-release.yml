@@ -98,17 +98,13 @@ jobs:
         working-directory: ladybird-src
         run: |
           export CMAKE_ARGS="-DBUILD_TESTING=OFF"
-          su runner -c "./Meta/ladybird.py build"
+          su runner -c "./Meta/ladybird.py build --preset Release"
 
       - name: Create Fedora tarball
         run: |
           cd ladybird-src/Build/release/bin
-          ls -lah
-          
-          tar -czf ../../../ladybird-ubuntu.tar.gz .
-          cd ../../..
-          tree .
-          # chown -R 1001:1001 ladybird-src/ladybird-fedora.tar.gz
+          tar -czf ../../../ladybird-fedora.tar.gz .
+          chown -R 1001:1001 ladybird-src/ladybird-fedora.tar.gz
 
       - name: Upload Fedora artifact
         uses: actions/upload-artifact@v4
