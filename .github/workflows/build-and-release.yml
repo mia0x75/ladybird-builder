@@ -98,7 +98,7 @@ jobs:
         working-directory: ladybird-src
         run: |
           export CMAKE_ARGS="-DBUILD_TESTING=OFF"
-          su runner -c "./Meta/ladybird.py build --preset Release"
+          su runner -c "./Meta/ladybird.py build --preset Release Ladybird"
 
       - name: Create portable Ladybird bundle with runtime libraries
         working-directory: ladybird-src
