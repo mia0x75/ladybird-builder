@@ -100,12 +100,33 @@ jobs:
           export CMAKE_ARGS="-DBUILD_TESTING=OFF"
           su runner -c "./Meta/ladybird.py build --preset Release"
 
-      - name: Create Fedora tarball
+      - name: Create portable Ladybird bundle with runtime libraries
+        working-directory: ladybird-src
         run: |
-          cd ladybird-src/Build/release/bin
-          tar -czf ../../../ladybird-fedora.tar.gz .
-          cd ../../..
-          chown 1001:1001 ladybird-fedora.tar.gz
+          # 创建分发目录
+          su runner -c "mkdir -p dist/{bin,lib}"
+
+          # 复制 Ladybird 及其必需的 helper 进程（排除 Test*）
+          su runner -c "find Build/release/bin -maxdepth 1 -type f -executable \
+                         ! -name 'Test*' ! -name 'CTest*' ! -name 'cmake*' \
+                         -exec cp {} dist/bin/ \;"
+
+          # 复制 vcpkg 动态库
+          TRIPLET="x64-linux"
+          VCPKG_LIB_DIR="Build/vcpkg/installed/ $ TRIPLET/lib"
+          if [ ! -d " $ VCPKG_LIB_DIR" ]; then
+            echo "Error: vcpkg lib dir not found"
+            ls -la Build/vcpkg/installed/
+            exit 1
+          fi
+          su runner -c "find  $ VCPKG_LIB_DIR -type f   $  -name '*.so' -o -name '*.so.*'  $   -exec cp {} dist/lib/ \;"
+
+          # 设置 RPATH（对所有可执行文件）
+          sudo dnf install -y patchelf
+          su runner -c "for exe in dist/bin/*; do patchelf --set-rpath '\ $ ORIGIN/../lib' \"\ $ exe\"; done"
+
+          # 打包
+          su runner -c "tar -czf ladybird-fedora.tar.gz dist"
           ls -lah ladybird-fedora.tar.gz
 
       - name: Upload Fedora artifact
